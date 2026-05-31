@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Note Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        body {
+            background-color: #e9ecef;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .toolbar-wrap {
+            background: #fff;
+            border-bottom: 1px solid #ddd;
+        }
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            flex-wrap: wrap;
+        }
+        .ctrl-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #eee;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .audio-top {
+            padding: 8px 16px 12px;
+            border-top: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .audio-top p {
+            font-size: 13px;
+            color: #444;
+        }
+        audio {
+            width: 300px;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 5px;
+            background: #f1f3f5;
+            cursor: pointer;
+            font-size: 16px;
+            transition: 0.2s;
+        }
+        button.active {
+            background: #228be6;
+            color: #fff;
+        }
+        button:hover:not(.active) {
+            background: #dee2e6;
+        }
+        input[type="color"] {
+            width: 28px;
+            height: 28px;
+            border: none;
+            cursor: pointer;
+        }
+        input[type="range"] {
+            width: 80px;
+        }
+        .divider {
+            width: 1px;
+            height: 24px;
+            background: #ddd;
+            margin: 0 4px;
+        }
+
+        .main-box {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        .canvas-container {
+            width: 75%;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+        }
+        .a4-paper {
+            width: 750px;
+            height: 1060px;
+            background: #fff;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            position: relative;
+        }
+        #pdfCanvas {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+        .right-panel {
+            width: 25%;
+            background: #fff;
+            border-left: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-title {
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            border-bottom: 1px solid #eee;
+        }
+        .thumb-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+        .page-thumb {
+            width: 100%;
+            aspect-ratio: 1 / 1.414;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #f8f8f8;
+            transform: scale(1.05);
+        }
+        .page-thumb.active {
+            border-color: #228be6;
+        }
+        .page-thumb canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .page-info {
+            padding: 12px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            font-size: 14px;
+            color: #333;
+        }
+
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 6px;
+            display: none;
+            z-index: 999;
+        }
+        #fileInput, #audioInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar-wrap">
+        <div class="toolbar">
+            <button id="uploadBtn">📂</button>
+            <input type="file" id="fileInput" accept=".pdf">
+            <div class="divider"></div>
+
+            <button id="penBtn" class="active">✏️</button>
+            <div class="ctrl-group">
+                <input type="color" id="penColor" value="#ff0000">
+                <input type="range" id="penSize" min="1" max="40" value="5">
+            </div>
+            <div class="divider"></div>
+
+            <button id="highBtn">💡</button>
+            <div class="ctrl-group">
+                <input type="color" id="highColor" value="#ffff00">
+                <input type="range" id="highAlpha" min="0" max="100" value="30">
+            </div>
+            <div class="divider"></div>
+
+            <button id="eraserBtn">🧽</button>
+            <button id="textBtn">📝</button>
+            <button id="moveBtn">👆</button>
+            <div class="divider"></div>
+
+            <button id="zoomIn">🔍+</button>
+            <button id="zoomOut">🔍-</button>
+            <button id="zoomReset">↺</button>
+            <div class="divider"></div>
+
+            <button id="prevPage">⬅</button>
+            <button id="nextPage">➡</button>
+            <div class="divider"></div>
+
+            <button id="exportBtn">💾</button>
+        </div>
+
+        <div class="audio-top">
+            <p>🎵 Audio</p>
+            <button id="audioUploadBtn">📁 导入音频</button>
+            <input type="file" id="audioInput" accept="audio/*">
+            <audio controls id="audioPlay">
+                <source src="" type="audio/mpeg">
+                Not supported
+            
+        </div>
+    </div>
+
+    <div class="main-box">
+        <div class="canvas-container">
+            <div class="a4-paper">
+                <canvas id="pdfCanvas"></canvas>
+            </div>
+        </div>
+        <div class="right-panel">
+            <div class="panel-title">Preview</div>
+            <div class="thumb-list" id="thumbList"></div>
+            <div class="page-info" id="pageInfo">0 / 0</div>
+        </div>
+    </div>
+
+    <div id="loading">Loading...</div>
+
+    <script>
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        let pdfDoc = null;
+        let currentPage = 1;
+        let totalPage = 0;
+        let zoomScale = 1;
+        let canvas, fabricCanvas;
+        let pageNotes = {};
+
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileInput = document.getElementById('fileInput');
+        const penBtn = document.getElementById('penBtn');
+        const highBtn = document.getElementById('highBtn');
+        const eraserBtn = document.getElementById('eraserBtn');
+        const textBtn = document.getElementById('textBtn');
+        const moveBtn = document.getElementById('moveBtn');
+        const zoomIn = document.getElementById('zoomIn');
+        const zoomOut = document.getElementById('zoomOut');
+        const zoomReset = document.getElementById('zoomReset');
+        const prevPage = document.getElementById('prevPage');
+        const nextPage = document.getElementById('nextPage');
+        const exportBtn = document.getElementById('exportBtn');
+        const thumbList = document.getElementById('thumbList');
+        const loading = document.getElementById('loading');
+        const pageInfo = document.getElementById('pageInfo');
+
+        const penColor = document.getElementById('penColor');
+        const penSize = document.getElementById('penSize');
+        const highColor = document.getElementById('highColor');
+        const highAlpha = document.getElementById('highAlpha');
+
+        const audioUploadBtn = document.getElementById('audioUploadBtn');
+        const audioInput = document.getElementById('audioInput');
+        const audioPlay = document.getElementById('audioPlay');
+
+        function initCanvas() {
+            canvas = document.getElementById('pdfCanvas');
+            fabricCanvas = new fabric.Canvas(canvas, {
+                width: canvas.offsetWidth,
+                height: canvas.offsetHeight,
+                isDrawingMode: true
+            });
+            fabricCanvas.freeDrawingBrush.color = penColor.value;
+            fabricCanvas.freeDrawingBrush.width = +penSize.value;
+            fabricCanvas.freeDrawingBrush.opacity = 1;
+            setTool('pen');
+        }
+
+        function setTool(tool) {
+            [penBtn, highBtn, eraserBtn, textBtn, moveBtn].forEach(b => b.classList.remove('active'));
+            fabricCanvas.isDrawingMode = false;
+            fabricCanvas.off('mouse:down');
+
+            switch(tool) {
+                case 'pen':
+                    penBtn.classList.add('active');
+                    fabricCanvas.isDrawingMode = true;
+                    fabricCanvas.freeDrawingBrush.color = penColor.value;
+                    fabricCanvas.freeDrawingBrush.width = +penSize.value;
+                    fabricCanvas.freeDrawingBrush.opacity = 1;
+                    break;
+                case 'highlight':
+                    highBtn.classList.add('active');
+                    fabricCanvas.isDrawingMode = true;
+                    fabricCanvas.freeDrawingBrush.color = highColor.value;
+                    fabricCanvas.freeDrawingBrush.width = +penSize.value * 3;
+                    fabricCanvas.freeDrawingBrush.opacity = +highAlpha.value / 100;
+                    break;
+                case 'eraser':
+                    eraserBtn.classList.add('active');
+                    fabricCanvas.isDrawingMode = true;
+                    fabricCanvas.freeDrawingBrush.color = "#ffffff";
+                    fabricCanvas.freeDrawingBrush.width = +penSize.value * 4;
+                    break;
+                case 'text':
+                    textBtn.classList.add('active');
+                    fabricCanvas.on('mouse:down', e => {
+                        const txt = new fabric.Textbox('Text', {
+                            left: e.pointer.x,
+                            top: e.pointer.y,
+                            fontSize: +penSize.value * 4,
+                            fill: penColor.value
+                        });
+                        fabricCanvas.add(txt).setActiveObject(txt);
+                    });
+                    break;
+                case 'move':
+                    moveBtn.classList.add('active');
+                    fabricCanvas.selection = true;
+                    break;
+            }
+        }
+
+        function renderPage(page) {
+            loading.style.display = 'block';
+            currentPage = page;
+            pageInfo.textContent = `${currentPage} / ${totalPage}`;
+
+            pdfDoc.getPage(page).then(pg => {
+                const view = pg.getViewport({ scale: 1 });
+                canvas.width = view.width;
+                canvas.height = view.height;
+
+                const ctx = canvas.getContext('2d');
+                pg.render({ canvasContext: ctx, viewport: view }).promise.then(() => {
+                    fabricCanvas.clear();
+                    if(pageNotes[currentPage]){
+                        fabricCanvas.loadFromJSON(pageNotes[currentPage], ()=>fabricCanvas.renderAll());
+                    }
+                    loading.style.display = 'none';
+                    updateThumbActive();
+                });
+            });
+        }
+
+        function createAllThumbs() {
+            thumbList.innerHTML = '';
+            for(let i = 1; i <= totalPage; i++){
+                pdfDoc.getPage(i).then(pg => {
+                    const view = pg.getViewport({ scale: 0.3 });
+                    const wrap = document.createElement('div');
+                    wrap.className = 'page-thumb';
+                    wrap.dataset.page = i;
+
+                    const tCan = document.createElement('canvas');
+                    tCan.width = view.width;
+                    tCan.height = view.height;
+                    const tCtx = tCan.getContext('2d');
+
+                    pg.render({ canvasContext: tCtx, viewport: view }).promise.then(() => {
+                        wrap.appendChild(tCan);
+                        wrap.addEventListener('click', ()=>{
+                            if(currentPage !== i){
+                                pageNotes[currentPage] = JSON.stringify(fabricCanvas);
+                                renderPage(i);
+                            }
+                        });
+                        thumbList.appendChild(wrap);
+                    });
+                });
+            }
+        }
+
+        function updateThumbActive() {
+            document.querySelectorAll('.page-thumb').forEach(thumb => {
+                thumb.classList.toggle('active', Number(thumb.dataset.page) === currentPage);
+            });
+        }
+
+        function loadPdf(file) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const arr = new Uint8Array(e.target.result);
+                pdfjsLib.getDocument(arr).promise.then(pdf => {
+                    pdfDoc = pdf;
+                    totalPage = pdf.numPages;
+                    pageNotes = {};
+                    pageInfo.textContent = `1 / ${totalPage}`;
+                    createAllThumbs();
+                    renderPage(1);
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function exportImg() {
+            pageNotes[currentPage] = JSON.stringify(fabricCanvas);
+            const url = canvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Note_Page${currentPage}.png`;
+            a.click();
+        }
+
+        function setZoom(step) {
+            zoomScale += step;
+            if(zoomScale < 0.5) zoomScale = 0.5;
+            if(zoomScale > 2) zoomScale = 2;
+            document.querySelector('.a4-paper').style.transform = `scale(${zoomScale})`;
+            document.querySelector('.a4-paper').style.transformOrigin = 'top center';
+        }
+        function resetZoom() {
+            zoomScale = 1;
+            document.querySelector('.a4-paper').style.transform = 'scale(1)';
+        }
+
+        uploadBtn.addEventListener('click', ()=>fileInput.click());
+        fileInput.addEventListener('change', e=>{
+            if(e.target.files[0]) loadPdf(e.target.files[0]);
+        });
+
+        penBtn.onclick = ()=>setTool('pen');
+        highBtn.onclick = ()=>setTool('highlight');
+        eraserBtn.onclick = ()=>setTool('eraser');
+        textBtn.onclick = ()=>setTool('text');
+        moveBtn.onclick = ()=>setTool('move');
+
+        penColor.addEventListener('input', () => {
+            if(penBtn.classList.contains('active')){
+                fabricCanvas.freeDrawingBrush.color = penColor.value;
+            }
+        });
+        penSize.addEventListener('input', () => {
+            if(penBtn.classList.contains('active')){
+                fabricCanvas.freeDrawingBrush.width = +penSize.value;
+            }
+        });
+
+        highColor.addEventListener('input', () => {
+            if(highBtn.classList.contains('active')){
+                fabricCanvas.freeDrawingBrush.color = highColor.value;
+            }
+        });
+        highAlpha.addEventListener('input', () => {
+            if(highBtn.classList.contains('active')){
+                fabricCanvas.freeDrawingBrush.opacity = +highAlpha.value / 100;
+            }
+        });
+
+        zoomIn.onclick = ()=>setZoom(0.1);
+        zoomOut.onclick = ()=>setZoom(-0.1);
+        zoomReset.onclick = resetZoom;
+
+        prevPage.onclick = ()=>{
+            if(currentPage > 1){
+                pageNotes[currentPage] = JSON.stringify(fabricCanvas);
+                renderPage(currentPage - 1);
+            }
+        };
+        nextPage.onclick = ()=>{
+            if(currentPage < totalPage){
+                pageNotes[currentPage] = JSON.stringify(fabricCanvas);
+                renderPage(currentPage + 1);
+            }
+        };
+        exportBtn.onclick = exportImg;
+
+        audioUploadBtn.addEventListener('click', ()=>audioInput.click());
+        audioInput.addEventListener('change', e=>{
+            const file = e.target.files[0];
+            if (!file || !file.type.startsWith('audio/')) {
+                alert('请选择音频文件');
+                return;
+            }
+            const url = URL.createObjectURL(file);
+            audioPlay.src = url;
+            audioPlay.load();
+        });
+
+        window.onload = initCanvas;
+    </script>
+</body>
+</html>
