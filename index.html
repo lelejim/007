@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Note Tool</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>PDF批注工具</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
     <style>
@@ -11,207 +11,482 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: system-ui, -apple-system, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+            -webkit-tap-highlight-color: transparent;
         }
         body {
-            background-color: #e9ecef;
+            background-color: #e2e2e2;
             height: 100vh;
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            touch-action: manipulation;
         }
-
-        .toolbar-wrap {
-            background: #fff;
-            border-bottom: 1px solid #ddd;
-        }
-        .toolbar {
+        .top-bar {
+            height: 50px;
+            background-color: #f7f7f7;
+            border-bottom: 1px solid #d1d1d1;
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 12px 16px;
-            flex-wrap: wrap;
+            justify-content: space-between;
+            padding: 0 16px;
+            flex-shrink: 0;
         }
-        .ctrl-group {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            border: 1px solid #eee;
-            padding: 4px 8px;
-            border-radius: 4px;
+        .top-left { display: flex; gap: 20px; align-items: center; }
+        .top-btn {
+            background: none; border: none; font-size: 15px; color: #007aff;
+            cursor: pointer; padding: 4px 8px; border-radius: 4px; min-height: 36px; min-width: 40px;
         }
-        .audio-top {
-            padding: 8px 16px 12px;
-            border-top: 1px solid #eee;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .audio-top p {
-            font-size: 13px;
-            color: #444;
-        }
-        audio {
-            width: 300px;
-            border-radius: 4px;
-        }
-
+        .top-btn:hover { background-color: #e5e5e7; }
+        .toolbar-wrap { background: #fff; border-bottom: 1px solid #ddd; flex-shrink: 0; }
+        .toolbar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; flex-wrap: wrap; }
+        .audio-top { padding: 8px 16px 12px; border-top: 1px solid #eee; display: flex; align-items: center; gap: 10px; }
+        .audio-top p { font-size: 13px; color: #444; }
+        audio { width: 300px; border-radius: 4px; }
+        .ctrl-group { display: flex; align-items: center; gap: 6px; border: 1px solid #eee; padding: 4px 8px; border-radius: 4px; }
         button {
-            padding: 6px 10px;
-            border: none;
-            border-radius: 5px;
-            background: #f1f3f5;
-            cursor: pointer;
-            font-size: 16px;
-            transition: 0.2s;
+            padding: 6px 10px; border: none; border-radius: 5px;
+            background: #f1f3f5; cursor: pointer; font-size: 16px; transition: 0.2s; min-height: 36px;
         }
-        button.active {
-            background: #228be6;
-            color: #fff;
-        }
-        button:hover:not(.active) {
-            background: #dee2e6;
-        }
-        input[type="color"] {
-            width: 28px;
-            height: 28px;
-            border: none;
-            cursor: pointer;
-        }
-        input[type="range"] {
-            width: 80px;
-        }
-        .divider {
-            width: 1px;
-            height: 24px;
-            background: #ddd;
-            margin: 0 4px;
-        }
+        button.active { background: #007aff; color: #fff; }
+        button:hover:not(.active) { background: #dee2e6; }
+        input[type="color"] { width: 28px; height: 28px; border: none; cursor: pointer; }
+        input[type="range"] { width: 80px; }
+        .divider { width: 1px; height: 24px; background: #ddd; margin: 0 4px; }
 
-        .main-box {
-            flex: 1;
-            display: flex;
-            overflow: hidden;
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+        .sidebar {
+            width: 60px; background-color: #f7f7f7; border-right: 1px solid #d1d1d1;
+            display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 16px; flex-shrink: 0;
         }
+        .tool-btn {
+            width: 44px; height: 44px; border-radius: 8px; border: none; background: transparent;
+            font-size: 20px; cursor: pointer; color: #333; display: flex; align-items: center; justify-content: center;
+        }
+        .tool-btn.active { background-color: #007aff; color: #fff; }
+        .tool-btn:hover:not(.active) { background-color: #e5e5e7; }
+
         .canvas-container {
-            width: 75%;
-            overflow: auto;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding: 20px;
+            flex: 1; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 20px;
         }
         .a4-paper {
-            width: 750px;
-            height: 1060px;
-            background: #fff;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
             position: relative;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
         }
-        #pdfCanvas {
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            left: 0;
-            top: 0;
-        }
-
-        .right-panel {
-            width: 25%;
-            background: #fff;
-            border-left: 1px solid #ddd;
-            display: flex;
-            flex-direction: column;
-        }
-        .panel-title {
-            padding: 12px;
-            font-size: 14px;
-            font-weight: 600;
-            border-bottom: 1px solid #eee;
-        }
-        .thumb-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 18px;
-        }
-        .page-thumb {
-            width: 100%;
-            aspect-ratio: 1 / 1.414;
-            border: 2px solid transparent;
-            border-radius: 4px;
-            cursor: pointer;
-            background: #f8f8f8;
-            transform: scale(1.05);
-        }
-        .page-thumb.active {
-            border-color: #228be6;
-        }
-        .page-thumb canvas {
-            width: 100%;
-            height: 100%;
+        #mainCanvas {
             display: block;
-        }
-        .page-info {
-            padding: 12px;
-            border-top: 1px solid #eee;
-            text-align: center;
-            font-size: 14px;
-            color: #333;
+            background: #fff;
         }
 
-        #loading {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.7);
-            color: #fff;
-            padding: 12px 24px;
-            border-radius: 6px;
-            display: none;
-            z-index: 999;
-        }
-        #fileInput, #audioInput {
-            display: none;
-        }
+        .right-panel { width: 25%; background: #fff; border-left: 1px solid #ddd; display: flex; flex-direction: column; flex-shrink: 0; }
+        .panel-title { padding: 12px; font-size: 14px; font-weight: 600; border-bottom: 1px solid #eee; }
+        .thumb-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 18px; }
+        .page-thumb { width: 100%; aspect-ratio: 1 / 1.414; border: 2px solid transparent; border-radius: 4px; cursor: pointer; background: #f8f8f8; }
+        .page-thumb.active { border-color: #007aff; }
+        .page-thumb canvas { width: 100%; height: 100%; display: block; }
+        .page-info { padding: 12px; border-top: 1px solid #eee; text-align: center; font-size: 14px; color: #333; }
+        #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.7); color: #fff; padding: 12px 24px; border-radius: 6px; display: none; z-index: 999; }
+        #fileInput, #audioInput { display: none; }
     </style>
 </head>
 <body>
+    <div class="top-bar">
+        <div class="top-left">
+            <button class="top-btn" id="undoBtn">↩ 撤销</button>
+            <button class="top-btn" id="redoBtn">↪ 重做</button>
+            <button class="top-btn" id="clearBtn">🗑 清空</button>
+            <button class="top-btn" id="saveBtn">💾 导出</button>
+        </div>
+        <div class="top-right">
+            <button class="top-btn">分享</button>
+            <button class="top-btn">设置</button>
+        </div>
+    </div>
+
     <div class="toolbar-wrap">
         <div class="toolbar">
-            <button id="uploadBtn">📂</button>
+            <button id="uploadBtn">📂 上传PDF</button>
             <input type="file" id="fileInput" accept=".pdf">
             <div class="divider"></div>
-
-            <button id="penBtn" class="active">✏️</button>
+            <button id="penBtn" class="active">✏️ 画笔</button>
             <div class="ctrl-group">
                 <input type="color" id="penColor" value="#ff0000">
                 <input type="range" id="penSize" min="1" max="40" value="5">
             </div>
             <div class="divider"></div>
-
-            <button id="highBtn">💡</button>
+            <button id="highBtn">💡 高亮笔</button>
             <div class="ctrl-group">
                 <input type="color" id="highColor" value="#ffff00">
-                <input type="range" id="highAlpha" min="0" max="100" value="30">
+                <input type="range" id="highSize" min="1" max="40" value="8">
             </div>
             <div class="divider"></div>
-
-            <button id="eraserBtn">🧽</button>
-            <button id="textBtn">📝</button>
-            <button id="moveBtn">👆</button>
+            <button id="eraserBtn">🧽 橡皮擦</button>
+            <button id="textBtn">📝 文本</button>
+            <button id="moveBtn">👆 移动</button>
             <div class="divider"></div>
-
             <button id="zoomIn">🔍+</button>
             <button id="zoomOut">🔍-</button>
-            <button id="zoomReset">↺</button>
+            <button id="zoomReset">↺ 重置</button>
             <div class="divider"></div>
+            <button id="prevPage">⬅ 上一页</button>
+            <button id="nextPage">➡ 下一页</button>
+        </div>
+        <div class="audio-top">
+            <p>音频录音：</p>
+            <audio controls id="audioPlayer">
+            <input type="file" id="audioInput" accept="audio/*">
+            <button id="audioUploadBtn">上传音频</button>
+        </div>
+    </div>
 
-            <button id="prevPage">⬅</button>
-            <button id="nextPage">➡</button>
-            <div class="divider"></div>
+    <div class="main-container">
+        <div class="sidebar">
+            <button class="tool-btn active" data-tool="pen" title="书写笔">✏️</button>
+            <button class="tool-btn" data-tool="highlight" title="荧光笔/高亮">🖍️</button>
+            <button class="tool-btn" data-tool="eraser" title="橡皮擦">🧽</button>
+            <button class="tool-btn" data-tool="move" title="选择/移动">👆</button>
+            <button class="tool-btn" data-tool="text" title="文本框">📝</button>
+        </div>
+        <div class="canvas-container">
+            <div class="a4-paper">
+                <canvas id="mainCanvas" width="750" height="1060"></canvas>
+            </div>
+        </div>
+        <div class="right-panel">
+            <div class="panel-title">页面缩略图</div>
+            <div class="thumb-list" id="thumbList"></div>
+            <div class="page-info" id="pageInfo">第 1 / 1 页</div>
+        </div>
+    </div>
 
-            <button id="exportBtn">💾</button
+    <div id="loading">加载中...</div>
+
+    <script>
+        function bindTap(elem, cb) {
+            if(!elem) return;
+            elem.addEventListener('click', cb);
+            elem.addEventListener('touchstart', e => {
+                e.preventDefault();
+                cb.call(elem, e);
+            }, {passive:false});
+        }
+
+        // 单画布统一管理：PDF + 手写批注
+        const mainCanvas = document.getElementById('mainCanvas');
+        const fabricCanvas = new fabric.Canvas(mainCanvas, {
+            isDrawingMode: true,
+            backgroundColor: '#ffffff',
+            preserveObjectStacking: true
+        });
+
+        // 基础元素
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const audioInput = document.getElementById('audioInput');
+        const audioUploadBtn = document.getElementById('audioUploadBtn');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const loading = document.getElementById('loading');
+        const thumbList = document.getElementById('thumbList');
+        const pageInfo = document.getElementById('pageInfo');
+
+        const penBtn = document.getElementById('penBtn');
+        const highBtn = document.getElementById('highBtn');
+        const eraserBtn = document.getElementById('eraserBtn');
+        const textBtn = document.getElementById('textBtn');
+        const moveBtn = document.getElementById('moveBtn');
+
+        const undoBtn = document.getElementById('undoBtn');
+        const redoBtn = document.getElementById('redoBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const saveBtn = document.getElementById('saveBtn');
+
+        const zoomIn = document.getElementById('zoomIn');
+        const zoomOut = document.getElementById('zoomOut');
+        const zoomReset = document.getElementById('zoomReset');
+        const prevPage = document.getElementById('prevPage');
+        const nextPage = document.getElementById('nextPage');
+
+        const penColor = document.getElementById('penColor');
+        const penSize = document.getElementById('penSize');
+        const highColor = document.getElementById('highColor');
+        const highSize = document.getElementById('highSize');
+
+        const sideTools = document.querySelectorAll('.sidebar .tool-btn');
+
+        // 历史记录
+        let history = [];
+        let historyIndex = -1;
+        const maxHistory = 50;
+        function saveState() {
+            historyIndex++;
+            history.splice(historyIndex);
+            history.push(JSON.stringify(fabricCanvas.toJSON()));
+            if(history.length > maxHistory) history.shift();
+        }
+
+        // 全局状态
+        let currentMode = 'pen';
+        let pdfDoc = null;
+        let totalPages = 0;
+        let currentPage = 1;
+        let scale = 1;
+        let pdfBaseImage = null;
+
+        // 清除选中样式
+        function clearAllActive() {
+            [penBtn, highBtn, eraserBtn, textBtn, moveBtn].forEach(b => b.classList.remove('active'));
+            sideTools.forEach(b => b.classList.remove('active'));
+        }
+        function setActive(tool) {
+            clearAllActive();
+            switch(tool) {
+                case 'pen': penBtn.classList.add('active'); sideTools[0].classList.add('active'); break;
+                case 'highlight': highBtn.classList.add('active'); sideTools[1].classList.add('active'); break;
+                case 'eraser': eraserBtn.classList.add('active'); sideTools[2].classList.add('active'); break;
+                case 'move': moveBtn.classList.add('active'); sideTools[3].classList.add('active'); break;
+                case 'text': textBtn.classList.add('active'); sideTools[4].classList.add('active'); break;
+            }
+        }
+
+        function switchTool(tool) {
+            currentMode = tool;
+            setActive(tool);
+            fabricCanvas.isDrawingMode = false;
+
+            switch(tool) {
+                case 'pen':
+                    fabricCanvas.isDrawingMode = true;
+                    fabricCanvas.freeDrawingBrush = new fabric.PencilBrush(fabricCanvas);
+                    fabricCanvas.freeDrawingBrush.color = penColor.value;
+                    fabricCanvas.freeDrawingBrush.width = Number(penSize.value);
+                    fabricCanvas.hoverCursor = 'crosshair';
+                    break;
+                case 'highlight':
+                    fabricCanvas.isDrawingMode = true;
+                    fabricCanvas.freeDrawingBrush = new fabric.PencilBrush(fabricCanvas);
+                    // 高光透明度固定 55%
+                    fabricCanvas.freeDrawingBrush.color = hexToRgba(highColor.value, 0.55);
+                    fabricCanvas.freeDrawingBrush.width = Number(highSize.value);
+                    fabricCanvas.hoverCursor = 'crosshair';
+                    break;
+                case 'eraser':
+                    fabricCanvas.isDrawingMode = true;
+                    fabricCanvas.freeDrawingBrush = new fabric.PencilBrush(fabricCanvas);
+                    fabricCanvas.freeDrawingBrush.color = fabricCanvas.backgroundColor;
+                    fabricCanvas.freeDrawingBrush.width = Number(penSize.value);
+                    fabricCanvas.hoverCursor = 'cell';
+                    break;
+                case 'text':
+                    fabricCanvas.isDrawingMode = false;
+                    fabricCanvas.discardActiveObject().renderAll();
+                    fabricCanvas.once('mouse:down', e => {
+                        const pos = fabricCanvas.getPointer(e.e);
+                        const text = new fabric.IText('双击编辑文字', {
+                            left: pos.x, top: pos.y, fontSize: 20, fill: '#000'
+                        });
+                        fabricCanvas.add(text).setActiveObject(text);
+                        text.enterEditing();
+                        text.selectAll();
+                        saveState();
+                    });
+                    break;
+                case 'move':
+                    fabricCanvas.isDrawingMode = false;
+                    fabricCanvas.selection = true;
+                    fabricCanvas.hoverCursor = 'move';
+                    break;
+            }
+        }
+
+        // 绑定按钮事件
+        bindTap(penBtn, () => switchTool('pen'));
+        bindTap(highBtn, () => switchTool('highlight'));
+        bindTap(eraserBtn, () => switchTool('eraser'));
+        bindTap(textBtn, () => switchTool('text'));
+        bindTap(moveBtn, () => switchTool('move'));
+
+        sideTools.forEach(btn => {
+            bindTap(btn, () => {
+                const tool = btn.dataset.tool;
+                switchTool(tool);
+            });
+        });
+
+        // 画笔参数联动
+        penColor.addEventListener('input', () => {
+            if(currentMode === 'pen') fabricCanvas.freeDrawingBrush.color = penColor.value;
+        });
+        penSize.addEventListener('input', () => {
+            if(currentMode === 'pen' || currentMode === 'eraser') {
+                fabricCanvas.freeDrawingBrush.width = Number(penSize.value);
+            }
+        });
+        highColor.addEventListener('input', () => {
+            if(currentMode === 'highlight') {
+                fabricCanvas.freeDrawingBrush.color = hexToRgba(highColor.value, 0.55);
+            }
+        });
+        highSize.addEventListener('input', () => {
+            if(currentMode === 'highlight') {
+                fabricCanvas.freeDrawingBrush.width = Number(highSize.value);
+            }
+        });
+
+        // 撤销/重做/清空/导出
+        bindTap(undoBtn, () => {
+            if(historyIndex > 0) {
+                historyIndex--;
+                fabricCanvas.loadFromJSON(history[historyIndex], () => fabricCanvas.renderAll());
+            }
+        });
+        bindTap(redoBtn, () => {
+            if(historyIndex < history.length - 1) {
+                historyIndex++;
+                fabricCanvas.loadFromJSON(history[historyIndex], () => fabricCanvas.renderAll());
+            }
+        });
+        bindTap(clearBtn, () => {
+            fabricCanvas.clear();
+            if(pdfBaseImage) fabricCanvas.setBackgroundImage(pdfBaseImage, fabricCanvas.renderAll.bind(fabricCanvas));
+            saveState();
+        });
+        bindTap(saveBtn, () => {
+            const link = document.createElement('a');
+            link.download = 'PDF批注笔记.png';
+            link.href = mainCanvas.toDataURL('image/png');
+            link.click();
+        });
+
+        fabricCanvas.on('object:added', saveState);
+        fabricCanvas.on('object:modified', saveState);
+        fabricCanvas.on('object:removed', saveState);
+
+        // 颜色转换
+        function hexToRgba(hex, alpha) {
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            return `rgba(${r},${g},${b},${alpha})`;
+        }
+
+        // 渲染PDF为画布背景
+        function renderPage(num) {
+            pageInfo.innerText = `第 ${num} / ${totalPages} 页`;
+            if(!pdfDoc) return;
+            pdfDoc.getPage(num).then(page => {
+                const viewport = page.getViewport({scale: scale});
+                mainCanvas.width = viewport.width;
+                mainCanvas.height = viewport.height;
+                fabricCanvas.setDimensions({width: viewport.width, height: viewport.height});
+
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = viewport.width;
+                tempCanvas.height = viewport.height;
+                const ctx = tempCanvas.getContext('2d');
+
+                page.render({canvasContext: ctx, viewport: viewport}).promise.then(() => {
+                    pdfBaseImage = new fabric.Image(tempCanvas);
+                    fabricCanvas.setBackgroundImage(pdfBaseImage, fabricCanvas.renderAll.bind(fabricCanvas));
+                });
+            });
+        }
+
+        // 缩略图
+        function renderAllThumbs() {
+            thumbList.innerHTML = '';
+            for(let i = 1; i <= totalPages; i++){
+                const thumbWrap = document.createElement('div');
+                thumbWrap.className = 'page-thumb';
+                if(i === currentPage) thumbWrap.classList.add('active');
+                const thumbCanvas = document.createElement('canvas');
+                thumbWrap.appendChild(thumbCanvas);
+                thumbList.appendChild(thumbWrap);
+
+                pdfDoc.getPage(i).then(page => {
+                    const viewport = page.getViewport({scale: 0.25});
+                    thumbCanvas.width = viewport.width;
+                    thumbCanvas.height = viewport.height;
+                    page.render({canvasContext: thumbCanvas.getContext('2d'), viewport});
+                });
+
+                bindTap(thumbWrap, () => {
+                    document.querySelectorAll('.page-thumb').forEach(t => t.classList.remove('active'));
+                    thumbWrap.classList.add('active');
+                    currentPage = i;
+                    renderPage(i);
+                });
+            }
+        }
+
+        // 上传PDF
+        bindTap(uploadBtn, () => fileInput.click());
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if(!file || file.type !== 'application/pdf') return;
+            loading.style.display = 'block';
+            const typedArray = await file.arrayBuffer();
+            const pdfData = new Uint8Array(typedArray);
+
+            const pdfjsLib = window['pdfjs-dist/build/pdf'];
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+            pdfjsLib.getDocument(pdfData).promise.then(pdf => {
+                pdfDoc = pdf;
+                totalPages = pdf.numPages;
+                currentPage = 1;
+                renderPage(currentPage);
+                renderAllThumbs();
+                loading.style.display = 'none';
+            });
+        });
+
+        // 翻页
+        bindTap(prevPage, () => {
+            if(currentPage > 1){
+                currentPage--;
+                renderPage(currentPage);
+                syncThumbActive();
+            }
+        });
+        bindTap(nextPage, () => {
+            if(currentPage < totalPages){
+                currentPage++;
+                renderPage(currentPage);
+                syncThumbActive();
+            }
+        });
+        function syncThumbActive(){
+            document.querySelectorAll('.page-thumb').forEach((t,idx)=>{
+                t.classList.toggle('active', idx+1 === currentPage);
+            });
+        }
+
+        // 缩放
+        bindTap(zoomIn, () => {
+            scale += 0.1;
+            renderPage(currentPage);
+        });
+        bindTap(zoomOut, () => {
+            if(scale > 0.3) scale -= 0.1;
+            renderPage(currentPage);
+        });
+        bindTap(zoomReset, () => {
+            scale = 1;
+            renderPage(currentPage);
+        });
+
+        // 音频
+        bindTap(audioUploadBtn, () => audioInput.click());
+        audioInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if(!file) return;
+            const url = URL.createObjectURL(file);
+            audioPlayer.src = url;
+        });
+
+        // 初始化
+        saveState();
+        switchTool('pen');
+    </script>
+</body>
+</html>
